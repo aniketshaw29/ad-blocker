@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "Strict Ad Blocker",
+  "version": "0.1.0",
+  "description": "Aggressive ad and tracker blocking for Chrome and Edge with privacy-first defaults.",
+  "permissions": [
+    "declarativeNetRequest",
+    "declarativeNetRequestFeedback",
+    "storage",
+    "alarms",
+    "notifications"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "src/background/service-worker.js"
+  },
+  "action": {
+    "default_title": "Strict Ad Blocker",
+    "default_popup": "src/popup/popup.html"
+  },
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "ruleset_main",
+        "enabled": true,
+        "path": "rules/ruleset_main.json"
+      }
+    ]
+  }
+}

@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Strict Ad Blocker</title>
+    <link rel="stylesheet" href="./popup.css">
+  </head>
+  <body>
+    <main class="popup">
+      <h1>Strict Ad Blocker</h1>
+
+      <section class="card">
+        <label class="row" for="enabled-toggle">
+          <span>Blocking</span>
+          <input id="enabled-toggle" type="checkbox">
+        </label>
+        <p id="status-line" class="status">Checking status...</p>
+      </section>
+
+      <section class="card">
+        <button id="pause-btn" type="button">Pause 10 min</button>
+        <button id="resume-btn" class="secondary" type="button">Resume now</button>
+      </section>
+
+      <section class="card stats">
+        <p><strong>Session blocked:</strong> <span id="session-count">0</span></p>
+        <p><strong>Total blocked:</strong> <span id="total-count">0</span></p>
+      </section>
+    </main>
+
+    <script src="./popup.js"></script>
+  </body>
+</html>
