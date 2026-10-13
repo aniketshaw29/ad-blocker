@@ -40,11 +40,11 @@ Deliver Phase 1 foundation and a working Phase 2 baseline:
 
 ## Phase 4 - Update and Rollback
 
-- [ ] Finalize remote metadata schema
-- [ ] Implement package download and checksum verify
-- [ ] Implement atomic apply
-- [ ] Implement rollback to last-known-good
-- [ ] Add update notifications with version details
+- [x] Finalize remote metadata schema (initial)
+- [x] Implement package download and checksum verify (initial)
+- [x] Implement atomic apply (initial)
+- [x] Implement rollback to last-known-good (initial)
+- [x] Add update notifications with version details (initial)
 
 ## Phase 5 - Aggressive Hardening
 
@@ -70,6 +70,6 @@ Deliver Phase 1 foundation and a working Phase 2 baseline:
 ## Immediate Task Order
 
 1. Run manual smoke tests in Chrome and Edge (`docs/manual-smoke-test.md`)
-2. Start rules pipeline skeleton
-3. Implement real update endpoint integration
-4. Run first aggressive compatibility sweep
+2. Run first aggressive compatibility sweep
+3. Add signature verification to metadata/update flow
+4. Add CI checks for metadata and rules correctness

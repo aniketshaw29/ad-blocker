@@ -33,6 +33,7 @@ async function main() {
     generatedAt: pack.generatedAt,
     ruleCount: pack.rules.length,
     sourceIds: pack.sourceIds,
+    rulesFile: "ruleset_main.json",
     checksumSha256: checksumOfJson(pack.rules)
   };
 

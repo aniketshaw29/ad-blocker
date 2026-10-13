@@ -1,10 +1,12 @@
 const ALARM_RULE_UPDATE = "ruleUpdateCheck";
 const ALARM_RESUME_BLOCKING = "resumeBlocking";
 const RULESET_MAIN_ID = "ruleset_main";
+const PAUSE_OVERRIDE_RULE_ID = 999999999;
 const TEN_MINUTES_MS = 10 * 60 * 1000;
 const RULE_UPDATE_PERIOD_MINUTES = 6 * 60;
 const NOTIFICATION_ICON_DATA_URL =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/w8AAgMBgJ4X4wAAAABJRU5ErkJggg==";
+const MAX_DYNAMIC_RULES = 5000;
 
 // Set this when your rules update endpoint is ready.
 const RULE_UPDATE_METADATA_URL = "";
@@ -161,6 +163,12 @@ async function applyEffectiveBlockingState() {
     enableRulesetIds: shouldEnableRules ? [RULESET_MAIN_ID] : [],
     disableRulesetIds: shouldEnableRules ? [] : [RULESET_MAIN_ID]
   });
+
+  if (shouldEnableRules) {
+    await removePauseOverrideRule();
+  } else {
+    await ensurePauseOverrideRule();
+  }
 }
 
 async function runRuleUpdateCheck() {
@@ -172,18 +180,220 @@ async function runRuleUpdateCheck() {
   }
 
   try {
-    const response = await fetch(RULE_UPDATE_METADATA_URL, { cache: "no-store" });
-    if (!response.ok) {
-      throw new Error(`Update metadata request failed: ${response.status}`);
+    const metadata = await fetchMetadata(RULE_UPDATE_METADATA_URL);
+    const state = await getState();
+
+    if (metadata.version === state.activeRulesVersion) {
+      await setState({ lastUpdateStatus: "ok" });
+      return;
     }
 
-    // Placeholder: package download, verify, atomic apply, rollback.
-    await setState({ lastUpdateStatus: "ok" });
-    await createNotification("Rules updated", "Blocking rules were checked and are up to date.");
+    const remoteRules = await fetchRules(metadata, RULE_UPDATE_METADATA_URL);
+    validateRemoteRules(metadata, remoteRules);
+
+    const normalized = normalizeRemoteRules(remoteRules);
+    if (normalized.length > MAX_DYNAMIC_RULES) {
+      throw new Error(
+        `Remote rules exceed dynamic limit (${normalized.length} > ${MAX_DYNAMIC_RULES})`
+      );
+    }
+
+    const checksum = await sha256OfJson(normalized);
+    if (checksum !== metadata.checksumSha256) {
+      throw new Error("Checksum mismatch for downloaded rules");
+    }
+
+    await applyDynamicRulesWithRollback(normalized);
+    await setState({
+      activeRulesVersion: metadata.version,
+      lastKnownGoodRulesVersion: metadata.version,
+      lastUpdateStatus: "ok"
+    });
+
+    await createNotification(
+      "Rules updated",
+      `Updated to ${metadata.version} (${normalized.length} rules).`
+    );
   } catch (_error) {
     await setState({ lastUpdateStatus: "failed" });
     await createNotification("Rule update failed", "Continuing with current rules. Will retry automatically.");
   }
+}
+
+async function fetchMetadata(metadataUrl) {
+  const response = await fetch(metadataUrl, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Update metadata request failed: ${response.status}`);
+  }
+
+  const metadata = await response.json();
+  if (!metadata || typeof metadata !== "object") {
+    throw new Error("Invalid metadata payload");
+  }
+
+  if (typeof metadata.version !== "string" || !metadata.version) {
+    throw new Error("Invalid metadata.version");
+  }
+
+  if (typeof metadata.checksumSha256 !== "string" || metadata.checksumSha256.length !== 64) {
+    throw new Error("Invalid metadata.checksumSha256");
+  }
+
+  return metadata;
+}
+
+async function fetchRules(metadata, metadataUrl) {
+  const rulesUrl = resolveRulesUrl(metadata, metadataUrl);
+  const response = await fetch(rulesUrl, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Rules request failed: ${response.status}`);
+  }
+
+  return await response.json();
+}
+
+function resolveRulesUrl(metadata, metadataUrl) {
+  if (typeof metadata.rulesUrl === "string" && metadata.rulesUrl.length > 0) {
+    return metadata.rulesUrl;
+  }
+
+  const fileName =
+    typeof metadata.rulesFile === "string" && metadata.rulesFile.length > 0
+      ? metadata.rulesFile
+      : "ruleset_main.json";
+
+  return new URL(fileName, metadataUrl).toString();
+}
+
+function validateRemoteRules(metadata, rules) {
+  if (!Array.isArray(rules)) {
+    throw new Error("Rules payload must be an array");
+  }
+
+  if (typeof metadata.ruleCount === "number" && rules.length !== metadata.ruleCount) {
+    throw new Error(`Rule count mismatch: expected ${metadata.ruleCount}, got ${rules.length}`);
+  }
+}
+
+function normalizeRemoteRules(rules) {
+  const out = [];
+
+  for (let i = 0; i < rules.length; i += 1) {
+    const raw = rules[i];
+    const urlFilter = raw?.condition?.urlFilter;
+
+    if (typeof urlFilter !== "string" || !urlFilter) {
+      continue;
+    }
+
+    out.push({
+      id: i + 1,
+      priority: 1,
+      action: {
+        type: "block"
+      },
+      condition: {
+        urlFilter,
+        resourceTypes: [
+          "main_frame",
+          "sub_frame",
+          "script",
+          "xmlhttprequest",
+          "image",
+          "media",
+          "ping"
+        ]
+      }
+    });
+  }
+
+  return out;
+}
+
+async function sha256OfJson(value) {
+  const text = JSON.stringify(value);
+  const bytes = new TextEncoder().encode(text);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  const hashArray = Array.from(new Uint8Array(digest));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function applyDynamicRulesWithRollback(nextRules) {
+  const current = await chrome.declarativeNetRequest.getDynamicRules();
+  const currentUserRules = current.filter((rule) => rule.id !== PAUSE_OVERRIDE_RULE_ID);
+
+  const removeRuleIds = currentUserRules.map((rule) => rule.id);
+
+  try {
+    await chrome.declarativeNetRequest.updateDynamicRules({
+      removeRuleIds,
+      addRules: nextRules
+    });
+  } catch (error) {
+    const attemptedIds = nextRules.map((rule) => rule.id);
+    const latest = await chrome.declarativeNetRequest.getDynamicRules();
+    const latestUserRuleIds = latest
+      .filter((rule) => rule.id !== PAUSE_OVERRIDE_RULE_ID)
+      .map((rule) => rule.id);
+    const rollbackRemoveIds = Array.from(new Set([...attemptedIds, ...latestUserRuleIds]));
+
+    await chrome.declarativeNetRequest.updateDynamicRules({
+      removeRuleIds: rollbackRemoveIds,
+      addRules: currentUserRules
+    });
+
+    throw error;
+  }
+}
+
+async function ensurePauseOverrideRule() {
+  const dynamicRules = await chrome.declarativeNetRequest.getDynamicRules();
+  if (dynamicRules.some((rule) => rule.id === PAUSE_OVERRIDE_RULE_ID)) {
+    return;
+  }
+
+  await chrome.declarativeNetRequest.updateDynamicRules({
+    addRules: [
+      {
+        id: PAUSE_OVERRIDE_RULE_ID,
+        priority: 1000000,
+        action: {
+          type: "allow"
+        },
+        condition: {
+          regexFilter: ".*",
+          resourceTypes: [
+            "main_frame",
+            "sub_frame",
+            "stylesheet",
+            "script",
+            "image",
+            "font",
+            "object",
+            "xmlhttprequest",
+            "ping",
+            "csp_report",
+            "media",
+            "websocket",
+            "other"
+          ]
+        }
+      }
+    ],
+    removeRuleIds: []
+  });
+}
+
+async function removePauseOverrideRule() {
+  const dynamicRules = await chrome.declarativeNetRequest.getDynamicRules();
+  if (!dynamicRules.some((rule) => rule.id === PAUSE_OVERRIDE_RULE_ID)) {
+    return;
+  }
+
+  await chrome.declarativeNetRequest.updateDynamicRules({
+    addRules: [],
+    removeRuleIds: [PAUSE_OVERRIDE_RULE_ID]
+  });
 }
 
 async function createNotification(title, message) {
