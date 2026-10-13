@@ -1,0 +1,16 @@
+{
+  "sources": [
+    {
+      "id": "easylist",
+      "enabled": true,
+      "format": "adblock",
+      "url": "https://easylist.to/easylist/easylist.txt"
+    },
+    {
+      "id": "easyprivacy",
+      "enabled": true,
+      "format": "adblock",
+      "url": "https://easylist.to/easylist/easyprivacy.txt"
+    }
+  ]
+}

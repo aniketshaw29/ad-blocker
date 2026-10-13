@@ -1,0 +1,9 @@
+{
+  "allow": [],
+  "block": [
+    "||doubleclick.net^",
+    "||googlesyndication.com^",
+    "||google-analytics.com^"
+  ],
+  "remove": []
+}

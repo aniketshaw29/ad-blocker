@@ -32,11 +32,11 @@ Deliver Phase 1 foundation and a working Phase 2 baseline:
 
 ## Phase 3 - Hybrid Rules Pipeline
 
-- [ ] Create `rules-pipeline/` skeleton
-- [ ] Define source list config
-- [ ] Build normalize/dedupe pass
-- [ ] Build DNR compile output
-- [ ] Add package metadata generation
+- [x] Create `rules-pipeline/` skeleton
+- [x] Define source list config
+- [x] Build normalize/dedupe pass (initial)
+- [x] Build DNR compile output (initial)
+- [x] Add package metadata generation (initial)
 
 ## Phase 4 - Update and Rollback
 
