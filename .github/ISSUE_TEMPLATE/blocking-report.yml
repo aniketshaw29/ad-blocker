@@ -1,0 +1,50 @@
+name: Ad blocking or site breakage
+description: Report remaining ads, trackers, broken sites, or extension controls.
+body:
+  - type: markdown
+    attributes:
+      value: "Reports are public. Remove tokens/account IDs from URLs. Do not include passwords, cookies, payment data, authentication headers, or full network captures."
+  - type: dropdown
+    id: category
+    attributes:
+      label: Problem type
+      options:
+        - Ads or trackers remain
+        - Site functionality breaks
+        - Toggle or pause fails
+        - Rule update fails
+        - Other extension problem
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and version
+      placeholder: Chrome or Edge, version number
+    validations:
+      required: true
+  - type: input
+    id: extension-version
+    attributes:
+      label: Extension version
+    validations:
+      required: true
+  - type: input
+    id: rules-version
+    attributes:
+      label: Rules version (if available)
+  - type: input
+    id: page
+    attributes:
+      label: Public page URL or domain (sanitized)
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Include expected and actual behavior and whether global off changes the result.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Sanitized error text or screenshot (optional)

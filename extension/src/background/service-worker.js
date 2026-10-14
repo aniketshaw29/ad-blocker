@@ -286,15 +286,14 @@ function normalizeRemoteRules(rules) {
       continue;
     }
 
-    out.push({
-      id: i + 1,
-      priority: 1,
-      action: {
-        type: "block"
-      },
-      condition: {
-        urlFilter,
-        resourceTypes: [
+    const priority =
+      typeof raw.priority === "number" && Number.isFinite(raw.priority) && raw.priority > 0
+        ? Math.floor(raw.priority)
+        : 1;
+
+    const resourceTypes = Array.isArray(raw?.condition?.resourceTypes)
+      ? raw.condition.resourceTypes.filter((value) => typeof value === "string")
+      : [
           "main_frame",
           "sub_frame",
           "script",
@@ -302,7 +301,17 @@ function normalizeRemoteRules(rules) {
           "image",
           "media",
           "ping"
-        ]
+        ];
+
+    out.push({
+      id: i + 1,
+      priority,
+      action: {
+        type: "block"
+      },
+      condition: {
+        urlFilter,
+        resourceTypes
       }
     });
   }

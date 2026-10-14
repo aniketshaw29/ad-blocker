@@ -17,6 +17,10 @@ export interface OverridesFile {
   remove: string[];
 }
 
+export interface VideoOverridesFile {
+  videoBlock: string[];
+}
+
 export interface RawRule {
   sourceId: string;
   raw: string;
@@ -25,6 +29,8 @@ export interface RawRule {
 export interface NormalizedRule {
   filter: string;
   sourceId: string;
+  category: "general" | "tracker" | "video";
+  priority: number;
 }
 
 export interface DnrRule {

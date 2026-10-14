@@ -1,0 +1,9 @@
+{
+  "videoBlock": [
+    "||youtube.com/get_midroll_info^",
+    "||youtube.com/pagead/",
+    "||youtubei.googleapis.com/youtubei/v1/player/ad_break^",
+    "||googlevideo.com/videoplayback?*oad",
+    "||doubleclick.net/pagead/"
+  ]
+}

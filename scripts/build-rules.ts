@@ -4,20 +4,27 @@ import { readJsonFile, writeJsonFile } from "../rules-pipeline/src/fs-utils";
 import { ingestSources, loadSourcesConfig } from "../rules-pipeline/src/ingest";
 import { normalizeRules } from "../rules-pipeline/src/normalize";
 import { buildCompiledPackage, checksumOfJson } from "../rules-pipeline/src/package";
-import type { OverridesFile } from "../rules-pipeline/src/types";
+import type { OverridesFile, VideoOverridesFile } from "../rules-pipeline/src/types";
 import { validateDnrRules } from "../rules-pipeline/src/validate";
 
 async function main() {
   const root = path.resolve(__dirname, "..");
   const sourcesPath = path.join(root, "rules-pipeline/config/sources.json");
   const overridesPath = path.join(root, "rules-pipeline/config/overrides.json");
+  const videoOverridesPath = path.join(root, "rules-pipeline/config/video-overrides.json");
   const outputDir = path.join(root, "rules-pipeline/output");
 
   const version = `rules-${new Date().toISOString().slice(0, 10)}`;
   const sources = await loadSourcesConfig(sourcesPath);
   const overrides = await readJsonFile<OverridesFile>(overridesPath);
+  const videoOverrides = await readJsonFile<VideoOverridesFile>(videoOverridesPath);
   const rawRules = await ingestSources(sources);
-  const normalized = normalizeRules(rawRules, overrides);
+  const mergedOverrides: OverridesFile = {
+    allow: overrides.allow,
+    remove: overrides.remove,
+    block: [...overrides.block, ...videoOverrides.videoBlock]
+  };
+  const normalized = normalizeRules(rawRules, mergedOverrides);
   const compiled = compileToDnr(normalized);
 
   validateDnrRules(compiled);

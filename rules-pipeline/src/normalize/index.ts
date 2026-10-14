@@ -1,14 +1,29 @@
 import type { NormalizedRule, OverridesFile, RawRule } from "../types";
 
+const TRACKER_HINTS = [
+  "analytics",
+  "tracker",
+  "pixel",
+  "metrics",
+  "beacon",
+  "telemetry"
+];
+
+const VIDEO_HINTS = [
+  "youtube",
+  "ytimg",
+  "googlevideo",
+  "doubleclick",
+  "ads",
+  "adservice"
+];
+
 export function normalizeRules(rawRules: RawRule[], overrides: OverridesFile): NormalizedRule[] {
   const fromSources = rawRules
     .map((raw) => normalizeSingle(raw))
     .filter((rule): rule is NormalizedRule => Boolean(rule));
 
-  const fromOverrides = overrides.block.map((filter) => ({
-    filter,
-    sourceId: "override"
-  }));
+  const fromOverrides = overrides.block.map((filter) => toNormalizedRule(filter, "override"));
 
   const removed = new Set(overrides.remove);
   const dedup = new Map<string, NormalizedRule>();
@@ -41,8 +56,38 @@ function normalizeSingle(rawRule: RawRule): NormalizedRule | null {
     return null;
   }
 
+  return toNormalizedRule(value, rawRule.sourceId);
+}
+
+function toNormalizedRule(filter: string, sourceId: string): NormalizedRule {
+  const value = filter.toLowerCase();
+
+  if (includesAny(value, VIDEO_HINTS)) {
+    return {
+      filter,
+      sourceId,
+      category: "video",
+      priority: 3
+    };
+  }
+
+  if (includesAny(value, TRACKER_HINTS)) {
+    return {
+      filter,
+      sourceId,
+      category: "tracker",
+      priority: 2
+    };
+  }
+
   return {
-    filter: value,
-    sourceId: rawRule.sourceId
+    filter,
+    sourceId,
+    category: "general",
+    priority: 1
   };
+}
+
+function includesAny(input: string, needles: string[]): boolean {
+  return needles.some((needle) => input.includes(needle));
 }

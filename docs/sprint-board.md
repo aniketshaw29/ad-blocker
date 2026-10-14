@@ -2,7 +2,7 @@
 
 ## Current Sprint Goal
 
-Deliver Phase 1 foundation and a working Phase 2 baseline:
+Phase 7 operations preparation: define refresh, hotfix, reporting, and changelog workflows. Phase 6 verification remains a launch prerequisite.
 
 - MV3 extension loads in Chrome and Edge
 - Global ON/OFF works
@@ -48,14 +48,17 @@ Deliver Phase 1 foundation and a working Phase 2 baseline:
 
 ## Phase 5 - Aggressive Hardening
 
-- [ ] Expand strict rules coverage
-- [ ] Add video-platform-focused rule module
-- [ ] Tune priorities and conflict resolution
-- [ ] Capture known MV3 limitations
+- [x] Expand strict rules coverage (initial fallback ruleset)
+- [x] Add video-platform-focused rule module (initial overrides)
+- [x] Tune priorities and conflict resolution (pipeline categories)
+- [x] Capture known MV3 limitations
 
 ## Phase 6 - QA and Store Readiness
 
-- [ ] Build QA matrix
+- [x] Build QA matrix
+- [x] Prepare security review checklist and initial findings (`docs/phase-6-review.md`)
+- [x] Prepare store listing draft and release checklist
+- [ ] Resolve release blockers recorded in the initial review
 - [ ] Execute breakage regression pass
 - [ ] Final permissions/security review
 - [ ] Prepare Chrome Web Store listing assets
@@ -63,13 +66,20 @@ Deliver Phase 1 foundation and a working Phase 2 baseline:
 
 ## Phase 7 - Launch and Operations
 
-- [ ] Setup weekly rules refresh process
-- [ ] Setup emergency hotfix process
-- [ ] Publish changelog process
+- [x] Document six-hour source refresh and weekly rule-quality review (`docs/operations.md`)
+- [x] Document emergency hotfix and corrective-release process (`docs/hotfix-runbook.md`)
+- [x] Create changelog and release-entry format (`CHANGELOG.md`)
+- [x] Prepare voluntary issue-reporting template and triage workflow
+- [ ] Automate and exercise rule refresh/publishing after build and updater fixes
+- [ ] Complete Phase 6 release gates and submit tested packages to both stores
+- [ ] Conduct soft launch and verify the support/hotfix workflow
+- [ ] Establish verified operational release cadence
 
 ## Immediate Task Order
 
-1. Run manual smoke tests in Chrome and Edge (`docs/manual-smoke-test.md`)
-2. Run first aggressive compatibility sweep
-3. Add signature verification to metadata/update flow
-4. Add CI checks for metadata and rules correctness
+1. Add runnable TypeScript tooling and verify supported filter syntax.
+2. Fix popup countdown, pause recovery, and production counter behavior.
+3. Harden updater validation, priority limits, signatures, and rule replacement semantics.
+4. Configure the HTTPS update endpoint and run update integration tests.
+5. Run Chrome/Edge smoke tests and the aggressive compatibility sweep.
+6. Finalize icons, screenshots, listing copy, privacy policy, and release package.
