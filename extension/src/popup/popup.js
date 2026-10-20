@@ -11,7 +11,12 @@ let ticker = null;
 document.addEventListener("DOMContentLoaded", async () => {
   await refresh();
   bindEvents();
-  ticker = setInterval(() => render(stateCache), 1000);
+  ticker = setInterval(() => {
+    render(stateCache);
+    if (stateCache?.temporaryDisableUntil && stateCache.temporaryDisableUntil <= Date.now()) {
+      refresh().catch(() => { statusLine.textContent = "Unable to refresh state."; });
+    }
+  }, 1000);
 });
 
 window.addEventListener("unload", () => {
@@ -72,8 +77,8 @@ function render(state) {
     return;
   }
 
-  if (state.isPaused) {
-    const secs = Math.max(0, Math.ceil(state.pauseRemainingMs / 1000));
+  if (state.temporaryDisableUntil > Date.now()) {
+    const secs = Math.max(0, Math.ceil((state.temporaryDisableUntil - Date.now()) / 1000));
     const mins = Math.floor(secs / 60);
     const remSecs = secs % 60;
     statusLine.textContent = `Paused: ${mins}:${String(remSecs).padStart(2, "0")} remaining`;

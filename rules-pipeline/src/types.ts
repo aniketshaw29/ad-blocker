@@ -31,6 +31,7 @@ export interface NormalizedRule {
   sourceId: string;
   category: "general" | "tracker" | "video";
   priority: number;
+  condition?: DnrRule["condition"];
 }
 
 export interface DnrRule {
@@ -42,6 +43,10 @@ export interface DnrRule {
   condition: {
     urlFilter: string;
     resourceTypes: string[];
+    excludedResourceTypes?: string[];
+    domainType?: "thirdParty" | "firstParty";
+    initiatorDomains?: string[];
+    excludedInitiatorDomains?: string[];
   };
 }
 

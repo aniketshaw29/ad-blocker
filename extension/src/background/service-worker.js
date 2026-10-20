@@ -18,7 +18,7 @@ const DEFAULT_STATE = {
   blockedCountTotal: 0,
   activeRulesVersion: "bundled-0.1.0",
   lastUpdateCheckAt: 0,
-  lastUpdateStatus: "ok",
+  lastUpdateStatus: "not-configured",
   lastKnownGoodRulesVersion: "bundled-0.1.0"
 };
 
@@ -30,6 +30,7 @@ chrome.runtime.onInstalled.addListener(async () => {
 
 chrome.runtime.onStartup.addListener(async () => {
   await initializeState();
+  await setState({ blockedCountSession: 0 });
   await ensureUpdateAlarm();
   await applyEffectiveBlockingState();
 });
@@ -53,12 +54,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return true;
 });
 
+let counterQueue = Promise.resolve();
 if (chrome.declarativeNetRequest.onRuleMatchedDebug) {
-  chrome.declarativeNetRequest.onRuleMatchedDebug.addListener(async () => {
-    const state = await getState();
-    await setState({
-      blockedCountSession: state.blockedCountSession + 1,
-      blockedCountTotal: state.blockedCountTotal + 1
+  chrome.declarativeNetRequest.onRuleMatchedDebug.addListener((event) => {
+    if (event.rule.ruleId === PAUSE_OVERRIDE_RULE_ID) return;
+    counterQueue = counterQueue.catch(() => {}).then(async () => {
+      const state = await getState();
+      await setState({
+        blockedCountSession: state.blockedCountSession + 1,
+        blockedCountTotal: state.blockedCountTotal + 1
+      });
     });
   });
 }
@@ -70,7 +75,8 @@ async function handleMessage(message) {
       return { state: withDerivedState(state) };
     }
     case "setEnabled": {
-      const nextEnabled = Boolean(message.enabled);
+      if (typeof message.enabled !== "boolean") throw new Error("enabled must be a boolean");
+      const nextEnabled = message.enabled;
       await setState({ extensionEnabled: nextEnabled });
       await applyEffectiveBlockingState();
       const state = await getState();
@@ -156,6 +162,15 @@ async function maybeResumeFromTemporaryDisable() {
 }
 
 async function applyEffectiveBlockingState() {
+  const stored = await getState();
+  if (typeof stored.temporaryDisableUntil === "number") {
+    if (stored.temporaryDisableUntil <= Date.now()) {
+      await setState({ temporaryDisableUntil: null });
+      await chrome.alarms.clear(ALARM_RESUME_BLOCKING);
+    } else {
+      await chrome.alarms.create(ALARM_RESUME_BLOCKING, { when: stored.temporaryDisableUntil });
+    }
+  }
   const state = withDerivedState(await getState());
   const shouldEnableRules = state.effectiveBlockingEnabled;
 
@@ -175,7 +190,7 @@ async function runRuleUpdateCheck() {
   await setState({ lastUpdateCheckAt: Date.now() });
 
   if (!RULE_UPDATE_METADATA_URL) {
-    await setState({ lastUpdateStatus: "ok" });
+    await setState({ lastUpdateStatus: "not-configured" });
     return;
   }
 
@@ -198,7 +213,7 @@ async function runRuleUpdateCheck() {
       );
     }
 
-    const checksum = await sha256OfJson(normalized);
+    const checksum = await sha256OfJson(remoteRules);
     if (checksum !== metadata.checksumSha256) {
       throw new Error("Checksum mismatch for downloaded rules");
     }
@@ -213,14 +228,15 @@ async function runRuleUpdateCheck() {
     await createNotification(
       "Rules updated",
       `Updated to ${metadata.version} (${normalized.length} rules).`
-    );
+    ).catch(() => {});
   } catch (_error) {
     await setState({ lastUpdateStatus: "failed" });
-    await createNotification("Rule update failed", "Continuing with current rules. Will retry automatically.");
+    await createNotification("Rule update failed", "Continuing with current rules. Will retry automatically.").catch(() => {});
   }
 }
 
 async function fetchMetadata(metadataUrl) {
+  if (new URL(metadataUrl).protocol !== "https:") throw new Error("Updates require HTTPS");
   const response = await fetch(metadataUrl, { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`Update metadata request failed: ${response.status}`);
@@ -235,10 +251,13 @@ async function fetchMetadata(metadataUrl) {
     throw new Error("Invalid metadata.version");
   }
 
-  if (typeof metadata.checksumSha256 !== "string" || metadata.checksumSha256.length !== 64) {
+  if (typeof metadata.checksumSha256 !== "string" || !/^[a-f0-9]{64}$/.test(metadata.checksumSha256)) {
     throw new Error("Invalid metadata.checksumSha256");
   }
 
+  if (!Number.isInteger(metadata.ruleCount) || metadata.ruleCount < 1 || metadata.ruleCount >= MAX_DYNAMIC_RULES) {
+    throw new Error("Invalid metadata.ruleCount");
+  }
   return metadata;
 }
 
@@ -253,70 +272,62 @@ async function fetchRules(metadata, metadataUrl) {
 }
 
 function resolveRulesUrl(metadata, metadataUrl) {
-  if (typeof metadata.rulesUrl === "string" && metadata.rulesUrl.length > 0) {
-    return metadata.rulesUrl;
-  }
-
-  const fileName =
+  const fileName = metadata.rulesUrl || (
     typeof metadata.rulesFile === "string" && metadata.rulesFile.length > 0
       ? metadata.rulesFile
-      : "ruleset_main.json";
+      : "ruleset_main.json");
 
-  return new URL(fileName, metadataUrl).toString();
+  const resolved = new URL(fileName, metadataUrl);
+  if (resolved.protocol !== "https:" || resolved.origin !== new URL(metadataUrl).origin) {
+    throw new Error("Rules must use the HTTPS metadata origin");
+  }
+  return resolved.toString();
 }
 
 function validateRemoteRules(metadata, rules) {
-  if (!Array.isArray(rules)) {
+  if (!Array.isArray(rules) || rules.length === 0 || rules.length >= MAX_DYNAMIC_RULES) {
     throw new Error("Rules payload must be an array");
   }
 
   if (typeof metadata.ruleCount === "number" && rules.length !== metadata.ruleCount) {
     throw new Error(`Rule count mismatch: expected ${metadata.ruleCount}, got ${rules.length}`);
   }
+
+  const ids = new Set();
+  const types = new Set(["main_frame", "sub_frame", "stylesheet", "script", "image", "font",
+    "object", "xmlhttprequest", "ping", "csp_report", "media", "websocket", "other"]);
+  for (const rule of rules) {
+    if (!Number.isInteger(rule.id) || rule.id < 1 || rule.id === PAUSE_OVERRIDE_RULE_ID || ids.has(rule.id) ||
+        !Number.isInteger(rule.priority) || rule.priority < 1 || rule.priority > 100 ||
+        rule.action?.type !== "block" || Object.keys(rule.action).length !== 1 ||
+        Object.keys(rule).some((key) => !["id", "priority", "action", "condition"].includes(key))) {
+      throw new Error("Invalid block rule");
+    }
+    ids.add(rule.id);
+    if (Object.keys(rule?.condition ?? {}).some((key) =>
+      !["urlFilter", "resourceTypes", "domainType", "initiatorDomains", "excludedInitiatorDomains"].includes(key))) {
+      throw new Error("Unsupported rule condition");
+    }
+    const condition = rule.condition;
+    if (typeof condition?.urlFilter !== "string" || !condition.urlFilter ||
+        !Array.isArray(condition.resourceTypes) || !condition.resourceTypes.length ||
+        condition.resourceTypes.some((type) => !types.has(type)) ||
+        (condition.domainType !== undefined && !["firstParty", "thirdParty"].includes(condition.domainType))) {
+      throw new Error("Invalid rule condition");
+    }
+    for (const key of ["initiatorDomains", "excludedInitiatorDomains"]) {
+      if (condition[key] !== undefined && (!Array.isArray(condition[key]) || !condition[key].length ||
+          condition[key].some((domain) => typeof domain !== "string" ||
+            !/^[a-z0-9]+(?:[a-z0-9.-]*[a-z0-9])?$/.test(domain)))) {
+        throw new Error("Invalid initiator domains");
+      }
+    }
+  }
 }
 
 function normalizeRemoteRules(rules) {
-  const out = [];
-
-  for (let i = 0; i < rules.length; i += 1) {
-    const raw = rules[i];
-    const urlFilter = raw?.condition?.urlFilter;
-
-    if (typeof urlFilter !== "string" || !urlFilter) {
-      continue;
-    }
-
-    const priority =
-      typeof raw.priority === "number" && Number.isFinite(raw.priority) && raw.priority > 0
-        ? Math.floor(raw.priority)
-        : 1;
-
-    const resourceTypes = Array.isArray(raw?.condition?.resourceTypes)
-      ? raw.condition.resourceTypes.filter((value) => typeof value === "string")
-      : [
-          "main_frame",
-          "sub_frame",
-          "script",
-          "xmlhttprequest",
-          "image",
-          "media",
-          "ping"
-        ];
-
-    out.push({
-      id: i + 1,
-      priority,
-      action: {
-        type: "block"
-      },
-      condition: {
-        urlFilter,
-        resourceTypes
-      }
-    });
-  }
-
-  return out;
+  // Validation precedes this call. Preserve the checksum-verified semantics exactly.
+  return structuredClone(rules);
 }
 
 async function sha256OfJson(value) {

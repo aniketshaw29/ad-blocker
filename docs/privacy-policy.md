@@ -1,6 +1,6 @@
 # Privacy Policy - Strict Ad Blocker (Draft)
 
-Last updated: 2026-10-13
+Last updated: 2026-10-20
 
 ## Overview
 
@@ -35,6 +35,8 @@ The extension may make network requests for rule updates (for example, metadata 
 
 We do not attach user profiling identifiers to update requests.
 
+The update endpoint is not yet configured in this development build. Once configured, the selected hosting provider may receive network metadata such as your IP address and request time. Its identity, access-log practices, and retention must be documented here before publication.
+
 ## Telemetry and Analytics
 
 Strict Ad Blocker does not include telemetry, analytics, usage tracking, or crash-reporting uploads.
@@ -61,6 +63,8 @@ Local extension state remains in your browser profile until you clear extension 
 ## Security
 
 We apply integrity checks and safe update practices for rule updates (such as validation and rollback strategy) to reduce risk from malformed or tampered updates.
+
+The development updater includes checksum/schema validation and a failed-apply recovery path. Publisher signature verification and hosted/browser validation are still pending; checksum validation alone does not authenticate a publisher.
 
 ## Children
 

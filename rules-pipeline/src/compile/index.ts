@@ -26,7 +26,7 @@ export function compileToDnr(normalizedRules: NormalizedRule[]): DnrRule[] {
     action: {
       type: "block"
     },
-    condition: {
+    condition: rule.condition ?? {
       urlFilter: rule.filter,
       resourceTypes: toResourceTypes(rule)
     }

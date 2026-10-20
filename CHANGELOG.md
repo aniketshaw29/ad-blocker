@@ -14,8 +14,16 @@ Development build `0.1.0`; no store release or hosted rule release has been publ
 
 ### Known gaps
 
-- Browser QA, production counting, TypeScript tooling, authenticated rule updates, update hosting, and store assets remain pending.
+- Browser QA, production counting, authenticated rule updates, update hosting, and store assets remain pending.
 - See [Phase 6 review](docs/phase-6-review.md) for implementation findings. Video ad blocking is not verified.
+
+### Development verification and fixes
+
+- Added local TypeScript tooling, parser/compiler tests, mocked runtime regressions, and offline build fixtures.
+- Added scoped resource/party/domain filter translation with unsupported-syntax reporting.
+- Fixed pause countdown and alarm reconciliation; serialized development counter writes.
+- Tightened update validation and preserved scoped conditions and checksum semantics.
+- Added a live-build minimum-coverage gate after actual list ingestion exposed inadequate exception handling.
 
 ## Entry Format for Future Releases
 

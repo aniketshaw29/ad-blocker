@@ -6,6 +6,8 @@ Status: **Not ready for store submission**. Documentation is prepared; browser Q
 
 - JavaScript syntax checks passed for the service worker and popup using `node --check`.
 - Reviewed the manifest, service worker, popup, and current pipeline implementation.
+- Parser/runtime regression tests and offline fixture builds pass. Runtime tests use mocked Chrome APIs, not a browser.
+- Live EasyList/EasyPrivacy ingestion was exercised: 140,587 input records produced only one rule due to conservative exception handling. The build now rejects live packages below 100 rules without writing new artifacts. Live-list coverage remains a release blocker.
 - No browser compatibility, live video-ad, hosted-update, or performance tests have been executed in this review.
 
 ## Findings and Release Blockers
@@ -14,17 +16,17 @@ Status: **Not ready for store submission**. Documentation is prepared; browser Q
 |---|---|---|
 | Updates are not configured | `RULE_UPDATE_METADATA_URL` is empty | Configure and test a project-controlled HTTPS endpoint; report unconfigured status accurately. |
 | Rule updates are not authenticated | Checksum is supplied by the same source as the payload | Add signature verification with a trusted public key bundled in the extension. A checksum alone does not authenticate the publisher. |
-| Remote rules are transformed before hashing | Updater hashes normalized rules | Verify the downloaded payload using a documented serialization contract before transforming it; reject unsupported rule fields rather than silently dropping them. |
-| Remote priorities can override pause | Priority is not bounded below the pause override priority | Enforce a maximum blocking priority and reject invalid priorities. |
-| Filter syntax is not translated | Parser accepts `||` lines including Adblock options/cosmetic syntax | Translate supported syntax to DNR conditions and report unsupported syntax; do not pass filter-list options literally to `urlFilter`. |
-| Pipeline is not runnable with documented tooling | No TypeScript project configuration or runner is configured | Add build/typecheck commands and meaningful parser/updater tests. |
-| Popup countdown is stale | Renderer repeatedly uses cached `pauseRemainingMs` | Compute remaining time from the expiry timestamp and refresh state after expiration. |
-| Pause alarm restoration is incomplete | Startup ensures update alarm, but not a future pause alarm | Restore the resume alarm on startup and clear expired pauses. Verify browser restart during pause. |
+| Checksum and scoped-condition preservation fixed locally | Updater verifies `SHA256(JSON.stringify(downloadedRules))` and preserves validated fields | Browser/hosted-update verification remains pending; signatures are still absent. |
+| Priority bounds added | Updater accepts integer block priorities from 1 through 100, below the pause override | Rejection is covered in runtime regression tests; verify in browser. |
+| Filter translation is partial | Domain anchors, resource options, party options, and initiator domain options now have tested translation; paths/cosmetic rules remain unsupported | Improve exception-aware translation; current live-list coverage is inadequate. Runtime now validates and preserves supported scoped conditions. |
+| Pipeline tooling and local regressions added | Local TypeScript/tsx tooling, parser/runtime tests, and offline build now pass | Hosted-update and browser integration tests remain pending. |
+| Popup countdown fixed locally | Renderer computes remaining time from the expiry timestamp and refreshes state after expiration | Regression test verifies decreasing countdown; browser validation remains pending. |
+| Pause alarm recovery fixed locally | Effective-state reconciliation restores future alarms and clears expired pauses | Mocked runtime test passes; verify browser restart during pause. |
 | Counter is development-only | Counter uses `onRuleMatchedDebug` | Choose a production-supported count strategy and label count scope accurately. |
-| Counter writes can race | Concurrent read/increment/write operations | Serialize counter updates; exclude the pause allow rule from blocked counts and define session reset behavior. |
+| Development counter writes serialized | Counter updates are queued, pause allow matches excluded, session reset on browser startup | Verify in unpacked browser; production counting remains unresolved. |
 | Updated rules do not replace bundled rules | Static rules stay enabled alongside downloaded dynamic rules | Define replacement/overlay semantics so a remote fix can remove obsolete bundled blocks. |
-| Rule budget is not coordinated | Runtime cap is 5,000; build has no matching budget | Enforce a shared budget, reserve space for the pause override, and test boundary packages. |
-| Package identity can repeat | Build version uses only the calendar date | Use unique release versions so six-hour updates on the same day are detected. |
+| Conservative rule budget aligned | Build and updater accept at most 4,999 package rules, reserving a pause slot | Add boundary/browser tests; keep constants aligned. |
+| Package identity improved | Build versions now include an ISO timestamp with milliseconds | Use immutable versioned publication artifacts and verify repeated release behavior. |
 | Video coverage is unverified | Current video overrides are candidate URL patterns | Validate playback and actual ad behavior on Chrome and Edge; remove patterns causing legitimate playback failures. |
 | Store assets are absent | No icons, screenshots, public support or privacy URLs | Prepare assets and replace placeholder contact information before submission. |
 

@@ -40,11 +40,13 @@ No per-site controls and no advanced rule editing in UI.
 
 MVP includes static DNR ruleset(s) bundled in extension package.
 
-Later stages add:
+Implemented development components:
 
 - Hybrid build pipeline (public lists + curated overrides)
-- Signed/versioned update package
-- Safe apply/rollback on update failures
+- Versioned/checksummed update package (publisher signatures pending)
+- Atomic DNR replacement with failed-apply recovery, tested with mocked APIs
+
+Downloaded dynamic rules currently overlay bundled static rules; they do not replace bundled blocks. Production replacement semantics remain open. The update endpoint is unconfigured, and live-list coverage is below the new minimum build threshold.
 
 ## State Model
 
@@ -56,7 +58,7 @@ Stored in `chrome.storage.local`:
 - `blockedCountTotal: number`
 - `activeRulesVersion: string`
 - `lastUpdateCheckAt: number`
-- `lastUpdateStatus: "ok" | "failed"`
+- `lastUpdateStatus: "ok" | "failed" | "not-configured"`
 - `lastKnownGoodRulesVersion: string`
 
 Notes:
@@ -114,7 +116,7 @@ Host permissions:
 
 Optional dev-only capability:
 
-- `declarativeNetRequestFeedback` for local matched-rule counting during development (not relied on in store behavior)
+- `declarativeNetRequestFeedback` is currently requested in the manifest and used for local matched-rule counting in unpacked builds. A production-supported counter and production manifest still need implementation.
 
 ## Security and Privacy Constraints
 

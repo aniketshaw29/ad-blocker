@@ -1,0 +1,18 @@
+{
+  "name": "strict-ad-blocker",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test rules-pipeline/tests/*.test.ts",
+    "build:rules": "tsx scripts/build-rules.ts",
+    "build:rules:offline": "tsx scripts/build-rules.ts --offline",
+    "release:rules:preview": "tsx scripts/release-rules.ts"
+  },
+  "engines": { "node": ">=22" },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}

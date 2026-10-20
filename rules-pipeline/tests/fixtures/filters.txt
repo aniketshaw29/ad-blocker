@@ -1,0 +1,9 @@
+! Offline parser fixture; no network required
+[Adblock Plus 2.0]
+||ads.example.com^
+||ads.example.com^
+||analytics.example.com^
+||scoped.example.com^$script,third-party
+example.com##.advertisement
+||excepted.example.com^
+@@||excepted.example.com^$domain=example.org
