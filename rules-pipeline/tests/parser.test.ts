@@ -3,6 +3,7 @@ import test from "node:test";
 import { normalizeWithReport, normalizeRules } from "../src/normalize";
 import { compileToDnr } from "../src/compile";
 import { validateDnrRules } from "../src/validate";
+import { selectRulesWithinBudget } from "../src/compile/budget";
 
 const overrides = { allow: [], block: [], remove: [] };
 const rows = (...filters: string[]) => filters.map((raw) => ({ raw, sourceId: "fixture" }));
@@ -65,4 +66,47 @@ test("unknown, contradictory, and invalid scoped options reject the entire filte
     "||ads.example.com^$third-party,~third-party"), overrides);
   assert.equal(rules.length, 0);
   assert.equal(report.unsupported, 4);
+});
+
+test("path-specific domain exceptions exclude only overlapping target domains", () => {
+  const { rules, report } = normalizeWithReport(rows("||ads.example.com^", "||unrelated.test^",
+    "@@||ads.example.com/player.js$script"), overrides);
+  assert.deepEqual(rules.map((rule) => rule.filter), ["||unrelated.test^"]);
+  assert.equal(report.exceptionCount, 1);
+});
+
+test("generic path exceptions project positive initiators without disabling all source blocks", () => {
+  const [compiled] = compileToDnr(normalizeRules(rows("||ads.example.com^",
+    "@@/allowed.js$script,domain=site.test|shop.test"), overrides));
+  assert.deepEqual(compiled.condition.excludedInitiatorDomains, ["shop.test", "site.test"]);
+  assert.ok(compiled.condition.resourceTypes.includes("script"));
+});
+
+test("unscoped path exception conservatively removes affected resource types", () => {
+  const [compiled] = compileToDnr(normalizeRules(rows("||ads.example.com^",
+    "@@/allowed.js$script,~third-party"), overrides));
+  assert.ok(!compiled.condition.resourceTypes.includes("script"));
+  assert.ok(compiled.condition.resourceTypes.includes("image"));
+});
+
+test("cosmetic exceptions do not suppress network blocking", () => {
+  assert.equal(normalizeRules(rows("||ads.example.com^", "@@$generichide,domain=site.test"), overrides).length, 1);
+});
+
+test("wildcard host exceptions preserve unrelated blocks", () => {
+  const rules = normalizeRules(rows("||coremetrics.com^", "||unrelated.test^",
+    "@@||coremetrics.com*/eluminate.js"), overrides);
+  assert.deepEqual(rules.map((rule) => rule.filter), ["||unrelated.test^"]);
+});
+
+test("budget prioritizes curated filters and reports deferred rules deterministically", () => {
+  const rules = normalizeRules(rows("||a.test^", "||analytics.test^"),
+    { ...overrides, block: ["||z.test^"] });
+  const { selected, deferred } = selectRulesWithinBudget(rules, 2);
+  assert.deepEqual(selected.map((rule) => rule.filter), ["||z.test^", "||analytics.test^"]);
+  assert.equal(deferred, 1);
+  assert.deepEqual(selectRulesWithinBudget([...rules].reverse(), 2).selected, selected);
+  assert.throws(() => selectRulesWithinBudget(rules, 0), /budget/);
+  const duplicate = normalizeRules(rows("||z.test^"), { ...overrides, block: ["||z.test^"] });
+  assert.equal(duplicate[0].sourceId, "override");
 });

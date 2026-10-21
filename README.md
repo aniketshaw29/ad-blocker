@@ -20,7 +20,7 @@ Load `extension/` as an unpacked extension from `chrome://extensions` or `edge:/
 
 ## Current Limitations
 
-- Public list ingestion works, but conservative exception handling currently yields inadequate coverage; live builds reject near-empty packages.
+- Public list builds now succeed with conservative exception projection and a deterministic 4,999-rule subset. Many supported rules are deferred by the budget and unsupported syntax remains skipped.
 - Offline output is a test fixture, not a production release.
 - Update endpoint and publisher signatures are not configured.
 - Counters use a development-only API; browser tests and video effectiveness are not verified.

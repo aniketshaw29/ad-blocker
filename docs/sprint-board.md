@@ -40,6 +40,7 @@ Phase 7 operations preparation: define refresh, hotfix, reporting, and changelog
 - [x] Configure local Node dependencies, lockfile, TypeScript tooling, and runtime version file
 - [x] Verify parser/compiler and mocked runtime regressions with an offline fixture build
 - [x] Exercise live-list ingestion and reject inadequate live-build coverage
+- [x] Restore live build with scoped exception projection and explicit budget selection (18 regression tests)
 - [ ] Implement broader exception-aware filter translation and test live-list coverage
 
 ## Phase 4 - Update and Rollback
@@ -81,7 +82,7 @@ Phase 7 operations preparation: define refresh, hotfix, reporting, and changelog
 
 ## Immediate Task Order
 
-1. Improve exception translation to restore useful live-list coverage; see `docs/verification-status.md`.
+1. Browser-verify the selected live rule subset and review conservative exceptions/budget deferrals; see `docs/verification-status.md`.
 2. Implement production-supported counters; browser-verify countdown and pause recovery fixes.
 3. Harden updater validation, priority limits, signatures, and rule replacement semantics.
 4. Configure the HTTPS update endpoint and run update integration tests.

@@ -38,13 +38,15 @@ Resource restrictions are explicit DNR conditions, not URL-filter text. Domain c
 
 The runtime updater validates and preserves supported resource, initiator-domain, and party restrictions. Local mocked-runtime tests cover preservation and checksum compatibility; hosted and browser update tests remain pending.
 
-Source exceptions conservatively exclude overlapping domain blocks. An exception that cannot be interpreted suppresses source-derived blocks for the build; explicit curated overrides remain eligible. This intentionally sacrifices coverage until a fuller exception-aware translator exists. `allow` overrides exclude domain blocks during compilation; they are not browser per-site controls. Malformed curated overrides fail the build.
+Source exceptions are conservatively projected: anchored host/path exceptions exclude overlapping target-domain blocks; generic path exceptions with positive `domain=` scope exclude those initiators; remaining resource-scoped exceptions remove affected resource types from source-derived rules. Cosmetic-only exceptions have no effect on network rules. Uninterpretable exceptions with no usable scope still suppress source-derived blocks as a final fallback. Curated overrides bypass generic resource/initiator projections but respect host exclusions and manual allow/remove entries. No per-site UI or acceptable-ads policy is introduced.
+
+This is deliberately broader exemption than the original exception, sacrificing coverage rather than silently blocking excepted traffic. Wildcard hosts are handled heuristically and full Adblock exception semantics are not implemented. `allow` overrides exclude domain blocks during compilation; they are not browser per-site controls. Malformed curated overrides fail the build.
 
 Video path candidates in `config/video-overrides.json` are counted as skipped, pending a tested translator. They are not included in pipeline output. Bundled candidate video rules remain separate and unverified.
 
-`output/build-report.json` records ignored, unsupported, excluded, duplicate, and emitted counts. Packages exceeding 4,999 rules fail rather than silently truncating; one slot is reserved for the current pause override. This is a conservative project budget, not a claim about every browser's API limit.
+`output/build-report.json` records ignored, unsupported, excluded, duplicate, exception, eligible (`output`), emitted, and budget-deferred counts, plus projected resource/initiator exclusions. A deterministic selection stage keeps at most 4,999 rules: curated rules first, then descending priority, then ascending filter text. Deferred rules are explicitly reported. This selection does not claim complete list coverage or optimal ad coverage. One slot is reserved for the current pause override; this is a conservative project budget, not a claim about every browser's API limit.
 
-Live builds also fail before writing artifacts if fewer than 100 rules are emitted. The current exception strategy produces inadequate coverage on real EasyList/EasyPrivacy input; this failure is expected until fuller exception translation is implemented. Existing output may be from an earlier build—always check command success and metadata before using it. Offline builds are fixtures, not production rule packages.
+Live builds fail before writing artifacts if fewer than 100 rules are emitted. The verified live build now fills the 4,999-rule budget; see `docs/verification-status.md` for measured counts. Existing output may be from an earlier build—always check command success and metadata before using it. Offline builds are fixtures, not production rule packages. Neither build automatically installs output into the extension.
 
 Build flow:
 

@@ -24,6 +24,7 @@ Development build `0.1.0`; no store release or hosted rule release has been publ
 - Fixed pause countdown and alarm reconciliation; serialized development counter writes.
 - Tightened update validation and preserved scoped conditions and checksum semantics.
 - Added a live-build minimum-coverage gate after actual list ingestion exposed inadequate exception handling.
+- Restored live-list builds using conservative exception projections and explicit deterministic rule-budget selection, with eligible/emitted/deferred counts in the build report.
 
 ## Entry Format for Future Releases
 

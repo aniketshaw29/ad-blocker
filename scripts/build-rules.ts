@@ -1,6 +1,7 @@
 import path from "node:path";
 import { readFile } from "node:fs/promises";
 import { compileToDnr } from "../rules-pipeline/src/compile";
+import { selectRulesWithinBudget } from "../rules-pipeline/src/compile/budget";
 import { readJsonFile, writeJsonFile } from "../rules-pipeline/src/fs-utils";
 import { ingestSources, loadSourcesConfig } from "../rules-pipeline/src/ingest";
 import { normalizeWithReport } from "../rules-pipeline/src/normalize";
@@ -26,7 +27,8 @@ async function main() {
     : await ingestSources(sources);
   // Video path patterns remain candidates until a path-aware translator is tested.
   const { rules: normalized, report } = normalizeWithReport(rawRules, overrides);
-  const compiled = compileToDnr(normalized);
+  const { selected, deferred } = selectRulesWithinBudget(normalized);
+  const compiled = compileToDnr(selected);
 
   validateDnrRules(compiled);
   if (!offline && compiled.length < 100) {
@@ -51,11 +53,13 @@ async function main() {
   await writeJsonFile(path.join(outputDir, "ruleset_main.json"), pack.rules);
   await writeJsonFile(path.join(outputDir, "metadata.json"), metadata);
   await writeJsonFile(path.join(outputDir, "build-report.json"), {
-    offline, ...report, videoCandidatesSkipped: videoOverrides.videoBlock.length
+    offline, ...report, emitted: compiled.length, budgetDeferred: deferred,
+    selectionPolicy: "curated-first, priority-descending, filter-ascending",
+    videoCandidatesSkipped: videoOverrides.videoBlock.length
   });
 
   process.stdout.write(
-    `Built ${pack.rules.length} rules from ${sources.length} sources. Version: ${pack.version}\n`
+    `Built ${pack.rules.length} rules from ${sources.length} sources (${normalized.length} eligible, ${deferred} deferred by budget). Version: ${pack.version}\n`
   );
 }
 

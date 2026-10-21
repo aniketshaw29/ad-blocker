@@ -46,7 +46,7 @@ Implemented development components:
 - Versioned/checksummed update package (publisher signatures pending)
 - Atomic DNR replacement with failed-apply recovery, tested with mocked APIs
 
-Downloaded dynamic rules currently overlay bundled static rules; they do not replace bundled blocks. Production replacement semantics remain open. The update endpoint is unconfigured, and live-list coverage is below the new minimum build threshold.
+Downloaded dynamic rules currently overlay bundled static rules; they do not replace bundled blocks. Production replacement semantics remain open. The update endpoint is unconfigured. Live-list compilation now succeeds with conservative exception projections and explicit selection of up to 4,999 rules, with deferred counts recorded in the build report.
 
 ## State Model
 

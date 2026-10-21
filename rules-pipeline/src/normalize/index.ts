@@ -7,6 +7,10 @@ export interface ParseReport {
   excluded: number;
   duplicates: number;
   output: number;
+  exceptionCount: number;
+  unsupportedExceptions: number;
+  projectedExceptionResourceTypes: string[];
+  projectedExceptionInitiators: string[];
 }
 
 // Domain anchors plus explicitly translated options only.
@@ -69,7 +73,8 @@ export function normalizeWithReport(rawRules: RawRule[], overrides: OverridesFil
   rules: NormalizedRule[]; report: ParseReport;
 } {
   const report: ParseReport = { input: rawRules.length, ignored: 0, unsupported: 0,
-    excluded: 0, duplicates: 0, output: 0 };
+    excluded: 0, duplicates: 0, output: 0, exceptionCount: 0, unsupportedExceptions: 0,
+    projectedExceptionResourceTypes: [], projectedExceptionInitiators: [] };
   const excludedDomains = new Set<string>();
   const removed = new Set(overrides.remove.map((value) => value.trim().toLowerCase()));
   for (const filter of overrides.allow) {
@@ -77,16 +82,38 @@ export function normalizeWithReport(rawRules: RawRule[], overrides: OverridesFil
     if (!domain) throw new Error(`Unsupported allow override: ${filter}`);
     excludedDomains.add(domain);
   }
-  // Conservatively exclude the target domain even for scoped source exceptions.
-  // Broad/path exceptions cannot be safely interpreted by this subset.
-  let unsupportedException = false;
+  // Project exceptions conservatively: exclude target domains, initiators or
+  // resource types rather than broadening a block across an exception.
+  const exceptionHosts: string[] = [];
+  const exceptionInitiators = new Set<string>();
+  const exceptionTypes = new Set<string>();
+  let excludeAllSourceRules = false;
   for (const { raw } of rawRules) {
     const value = raw.trim();
     if (!value.startsWith("@@")) continue;
-    const match = /^@@\|\|([^/^$]+)\^/.exec(value);
-    const domain = match ? domainOf(`||${match[1]}^`) : null;
-    if (domain) excludedDomains.add(domain);
-    else unsupportedException = true;
+    report.exceptionCount++;
+    const body = value.slice(2);
+    const options = body.split("$")[1]?.split(",") ?? [];
+    // Cosmetic-only exceptions cannot conflict with network blocks.
+    if (options.some((option) => ["generichide", "elemhide", "specifichide"].includes(option)) && options.every((option) =>
+      ["generichide", "elemhide", "specifichide"].includes(option) || option.startsWith("domain="))) {
+      continue;
+    }
+    const host = /^(?:\|\||\|?https?:\/\/)([^/^$?:]+)/i.exec(body)?.[1]?.toLowerCase();
+    if (host && /^[a-z0-9.*-]+$/.test(host)) {
+      if (host.includes("*")) exceptionHosts.push(host);
+      else excludedDomains.add(host);
+      continue;
+    }
+    report.unsupportedExceptions++;
+    const initiators = options.find((option) => option.startsWith("domain="))?.slice(7).split("|");
+    if (initiators?.length && initiators.every((entry) => !entry.startsWith("~") && domainOf(`||${entry}^`))) {
+      for (const domain of initiators) exceptionInitiators.add(domain.toLowerCase());
+      continue;
+    }
+    const types = options.filter((option) => RESOURCE_OPTIONS[option]).map((option) => RESOURCE_OPTIONS[option]);
+    if (types.length) for (const type of types) exceptionTypes.add(type);
+    else excludeAllSourceRules = true;
   }
   const dedup = new Map<string, NormalizedRule>();
   const candidates = [...rawRules, ...overrides.block.map((raw) => ({ raw, sourceId: "override" }))];
@@ -102,16 +129,35 @@ export function normalizeWithReport(rawRules: RawRule[], overrides: OverridesFil
     const { domain, filter, condition } = parsed;
     const overlapsException = [...excludedDomains].some((excluded) =>
       domain === excluded || domain.endsWith(`.${excluded}`) || excluded.endsWith(`.${domain}`));
-    if (removed.has(filter.toLowerCase()) || overlapsException || (unsupportedException && sourceId !== "override")) {
+    const wildcardOverlap = exceptionHosts.some((host) => {
+      // A wildcard host's fixed prefix/suffix conservatively identifies domains
+      // potentially covered by the exception, including ancestor block rules.
+      const fixed = host.split("*").filter(Boolean);
+      return fixed.some((part) => domain.includes(part.replace(/^\.|\.$/g, ""))) ||
+        fixed.length === 0;
+    });
+    if (removed.has(filter.toLowerCase()) || overlapsException || wildcardOverlap ||
+        (excludeAllSourceRules && sourceId !== "override")) {
       report.excluded++; continue;
     }
-    if (dedup.has(filter)) { report.duplicates++; continue; }
+    if (sourceId !== "override" && condition) {
+      condition.resourceTypes = condition.resourceTypes.filter((type) => !exceptionTypes.has(type));
+      if (!condition.resourceTypes.length) { report.excluded++; continue; }
+      const domains = [...new Set([...(condition.excludedInitiatorDomains ?? []), ...exceptionInitiators])].sort();
+      if (domains.length) condition.excludedInitiatorDomains = domains;
+    }
+    if (dedup.has(filter)) {
+      report.duplicates++;
+      if (sourceId !== "override") continue;
+    }
     const tracker = /analytics|tracker|metrics|telemetry/.test(domain);
     dedup.set(filter, { filter, sourceId, category: tracker ? "tracker" : "general",
       priority: tracker ? 2 : 1, condition });
   }
   const rules = [...dedup.values()].sort((a, b) => a.filter.localeCompare(b.filter, "en"));
   report.output = rules.length;
+  report.projectedExceptionResourceTypes = [...exceptionTypes].sort();
+  report.projectedExceptionInitiators = [...exceptionInitiators].sort();
   return { rules, report };
 }
 

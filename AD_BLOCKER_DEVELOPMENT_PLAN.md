@@ -1,6 +1,6 @@
 # Strict Ad Blocker for Chrome + Edge
 
-> Implementation status: development scaffold, not release-ready. This file is the roadmap, not evidence that all described features work. See `docs/verification-status.md` for verified checks and `docs/phase-6-review.md` for open blockers. Signing, production counters, live-list coverage, update hosting, and browser QA remain pending.
+> Implementation status: development scaffold, not release-ready. This file is the roadmap, not evidence that all described features work. See `docs/verification-status.md` for verified checks and `docs/phase-6-review.md` for open blockers. Live-list builds now succeed with a budgeted subset; signing, production counters, browser effectiveness, update hosting, and browser QA remain pending.
 
 ## 1) Product Vision
 
